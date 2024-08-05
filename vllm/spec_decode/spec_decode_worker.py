@@ -623,6 +623,14 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
                 if sgm.sampling_params.seed is not None
             }
 
+        # Vocab size of Qwen series is different
+        # See https://github.com/QwenLM/Qwen2/issues/29
+        # (TODO): remove to reduce overhead
+        if proposal_verifier_probs.shape != proposal_probs.shape:
+            # Shape should be [batch_size, num_speculative_tokens, vocab_size]
+            assert proposal_probs.shape[-1] <= proposal_verifier_probs.shape[-1]
+            proposal_verifier_probs = proposal_verifier_probs[..., :proposal_probs.shape[-1]]
+
         accepted_token_ids = self.spec_decode_sampler(
             target_probs=proposal_verifier_probs,
             bonus_token_ids=bonus_token_ids,
@@ -901,6 +909,15 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
         """Get the vocab size of the model and make sure it's consistent between
         draft and target workers.
         """
+        # Vocab size of Qwen series is different
+        # See https://github.com/QwenLM/Qwen2/issues/29
+        proposer_config = self.proposer_worker.model_config.hf_text_config
+        scorer_config = self.scorer_worker.model_config.hf_text_config
+        if scorer_config.architectures[0] == "Qwen2ForCausalLM" and \
+                proposer_config.architectures[0] == "Qwen2ForCausalLM":
+            assert proposer_config.vocab_size <= scorer_config.vocab_size  
+            return proposer_config.vocab_size
+        
         vocab_sizes = [
             worker.vocab_size
             for worker in [self.proposer_worker, self.scorer_worker]
