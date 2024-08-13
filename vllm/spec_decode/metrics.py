@@ -1,5 +1,5 @@
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Optional
 
 import torch
@@ -17,12 +17,12 @@ class SpecDecodeWorkerMetrics:
     # The empirical acceptance rate of the proposal method on a per-token basis.
     # This is useful for evaluating how well the proposal method aligns with the
     # scoring method.
-    draft_acceptance_rate: float
+    draft_acceptance_rate: float #= field(init=False)
 
     # The empirical efficiency, measured as the number of tokens emitted by the
     # system divided by the number of tokens that could be emitted by the system
     # if the proposal method were perfect.
-    system_efficiency: float
+    system_efficiency: float #= field(init=False)
 
     # The number of speculative tokens produced by the proposal method.
     draft_tokens: int

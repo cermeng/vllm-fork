@@ -241,7 +241,7 @@ class LLMEngine:
         self.observability_config = observability_config or ObservabilityConfig(
         )
         self.log_stats = log_stats
-
+        self.cymtest=0
         if not self.model_config.skip_tokenizer_init:
             self.tokenizer = self._init_tokenizer()
             self.detokenizer = Detokenizer(self.tokenizer)
@@ -1215,9 +1215,11 @@ class LLMEngine:
         # Create the outputs.
         request_outputs: List[Union[RequestOutput,
                                     EmbeddingRequestOutput]] = []
-        for scheduled_seq_group in scheduled_seq_groups:
+        for scheduled_seq_group, outputs in zip(scheduled_seq_groups, output):
             seq_group = scheduled_seq_group.seq_group
             seq_group.maybe_set_first_token_time(now)
+            if outputs.spec_decode_worker_metrics is not None:
+                seq_group.maybe_set_spec_decode_metrics(outputs.spec_decode_worker_metrics)
             request_output = RequestOutputFactory.create(seq_group)
             request_outputs.append(request_output)
         for seq_group in ignored_seq_groups:
@@ -1299,6 +1301,15 @@ class LLMEngine:
         else:
             output = []
 
+        self.cymtest+=1
+        logger.info("*" * 200)
+        logger.info(f"{list(seq_group_metadata_list[0].seq_data.values())[0].stage=}") # confirm prefill or decode stage
+        logger.info(f"{len(seq_group_metadata_list)=}") # batch size?
+        logger.info(f"{len(set(seq_group_metadata_list[0].seq_data.values()))=}") # confirm if all prefill(decode) or mixed
+        logger.info(f"{len(seq_group_metadata_list)=}")
+        logger.info(f"{self.cymtest=}")
+        logger.info("*" * 200)
+        #logger.info(output)
         request_outputs = self._process_model_outputs(
             output, scheduler_outputs.scheduled_seq_groups,
             scheduler_outputs.ignored_seq_groups, seq_group_metadata_list)

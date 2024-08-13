@@ -621,6 +621,7 @@ class LLM:
             for output in step_outputs:
                 if output.finished:
                     outputs.append(output)
+                    logger.info(output.metrics)
                     if use_tqdm:
                         if isinstance(output, RequestOutput):
                             # Calculate tokens only for RequestOutput

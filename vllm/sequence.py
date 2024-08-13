@@ -15,11 +15,11 @@ from vllm.lora.request import LoRARequest
 from vllm.pooling_params import PoolingParams
 from vllm.prompt_adapter.request import PromptAdapterRequest
 from vllm.sampling_params import SamplingParams
+from vllm.spec_decode.metrics import SpecDecodeWorkerMetrics
 
 if TYPE_CHECKING:
     from vllm.inputs import LLMInputs
     from vllm.multimodal import MultiModalDataDict
-    from vllm.spec_decode.metrics import SpecDecodeWorkerMetrics
 
 
 @dataclass
@@ -109,6 +109,7 @@ class RequestMetrics:
     scheduler_time: Optional[float] = None
     model_forward_time: Optional[float] = None
     model_execute_time: Optional[float] = None
+    spec_decode_worker_metrics: Optional["SpecDecodeWorkerMetrics"] = None
 
 
 class SequenceData:
@@ -531,7 +532,8 @@ class SequenceGroup:
                                       last_token_time=arrival_time,
                                       first_scheduled_time=None,
                                       first_token_time=None,
-                                      time_in_queue=None)
+                                      time_in_queue=None,
+                                      spec_decode_worker_metrics=None)
         self.lora_request = lora_request
         self.prompt_logprobs: Optional[PromptLogprobs] = None
         self.embeddings = embeddings
@@ -601,6 +603,11 @@ class SequenceGroup:
         self.metrics.last_token_time = now
         return latency
 
+    def maybe_set_spec_decode_metrics(self, metrics: SpecDecodeWorkerMetrics) -> None:
+        """Sets the spec decode metrics for Request level timings."""
+        if (self.metrics.spec_decode_metrics is None 
+                and metrics):
+            self.metrics.spec_decode_metrics = metrics
     def maybe_set_first_token_time(self, time: float) -> None:
         """Sets the first token time for Request level timings."""
         # Note: in a case where a sequence_group is swapped and

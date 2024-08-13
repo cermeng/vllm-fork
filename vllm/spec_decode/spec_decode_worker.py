@@ -388,7 +388,10 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
                                      skip_proposer=disable_all_speculation)
         return self._run_speculative_decoding_step(execute_model_req,
                                                    num_lookahead_slots)
-
+    # def get_spec_decode_metrics(self) -> SpecDecodeWorkerMetrics:
+    #     """Get the metrics of the speculative decoding worker.
+    #     """
+    #     return self.spec_decode_sampler
     @torch.inference_mode()
     def start_worker_execution_loop(self) -> None:
         """Execute model loop to perform speculative decoding

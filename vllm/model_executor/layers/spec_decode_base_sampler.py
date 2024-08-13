@@ -57,6 +57,10 @@ class SpecDecodeBaseSampler(nn.Module):
     def token_id_dtype(self):
         return torch.int64
 
+    def reset_metrics(self):
+        self.num_accepted_tokens = None
+        self.num_emitted_tokens = None
+        self.num_draft_tokens = 0
     def _create_output(
             self,
             accepted: torch.Tensor,  # [batch_size, k]
