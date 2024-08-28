@@ -46,6 +46,8 @@ def main(args: argparse.Namespace):
         load_format=args.load_format,
         distributed_executor_backend=args.distributed_executor_backend,
         otlp_traces_endpoint=args.otlp_traces_endpoint,
+        # FIXME: add related args
+        collect_detailed_traces=args.collect_detailed_traces,
         enable_prefix_caching=args.enable_prefix_caching,
     )
 
@@ -281,5 +283,10 @@ if __name__ == '__main__':
         type=str,
         default=None,
         help='Target URL to which OpenTelemetry traces will be sent.')
+    parser.add_argument(
+        '--collect-detailed-traces',
+        type=str,
+        default=None,
+        help='Details of the traces to collect.')
     args = parser.parse_args()
     main(args)

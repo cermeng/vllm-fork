@@ -1799,6 +1799,8 @@ class DecodingConfig:
 class ObservabilityConfig:
     """Configuration for observability."""
     otlp_traces_endpoint: Optional[str] = None
+    # Indicates whether to enable speculative decoding.
+    spec_decode_enable: bool = False
 
     # Collecting detailed timing information for each request can be expensive.
 
@@ -1808,19 +1810,36 @@ class ObservabilityConfig:
     # If set, collects the model execute time for the request.
     collect_model_execute_time: bool = False
 
+    # If set, collects the speculative decoding metrics for the request.
+    # FIXME:change default
+    collect_spec_decode_time: bool = False
+    collect_spec_decode_accept_rate: bool = False
+
+
     def __post_init__(self):
         if not is_otel_available() and self.otlp_traces_endpoint is not None:
             raise ValueError(
                 "OpenTelemetry is not available. Unable to configure "
                 "'otlp_traces_endpoint'. Ensure OpenTelemetry packages are "
                 f"installed. Original error:\n{otel_import_error_traceback}")
-
+        
         if ((self.collect_model_forward_time
              or self.collect_model_execute_time)
-                and self.otlp_traces_endpoint is None):
+                and self.spec_decode_enable):
             raise ValueError(
-                "collect_model_forward_time or collect_model_execute_time "
+                "collect_model_execute_time/collect_model_forward_time"
+                "is not supported in speculative decoding."
+                # FIXME: after name args for spec decode is ready
+                "Please use xxxxx???spec to collect metrics of spec decode")
+
+        collect_metrics = (self.collect_model_forward_time or self.collect_model_execute_time 
+                           or self.collect_spec_decode_time or self.collect_spec_decode_accept_rate)
+        if (collect_metrics and self.otlp_traces_endpoint is None):
+            raise ValueError(
+                # FIXME: rewrite message?
+                "collect-detailed-traces"
                 "requires --otlp-traces-endpoint to be set.")
+        
 
 
 @dataclass(frozen=True)

@@ -24,8 +24,8 @@ if TYPE_CHECKING:
 
 logger = init_logger(__name__)
 
-ALLOWED_DETAILED_TRACE_MODULES = ["model", "worker", "all"]
-
+ALLOWED_DETAILED_TRACE_MODULES = {"normal": ["model", "worker", "all"],
+                                  "speculative": ["time", "accept rate","all"]}
 
 def nullable_str(val: str):
     if not val or val == "None":
@@ -963,18 +963,34 @@ class EngineArgs:
         detailed_trace_modules = []
         if self.collect_detailed_traces is not None:
             detailed_trace_modules = self.collect_detailed_traces.split(",")
+        
+        decode_type = "speculative" if speculative_config else "normal"
+        allowed_trace = ALLOWED_DETAILED_TRACE_MODULES[decode_type]
         for m in detailed_trace_modules:
-            if m not in ALLOWED_DETAILED_TRACE_MODULES:
+            if m not in allowed_trace:
                 raise ValueError(
-                    f"Invalid module {m} in collect_detailed_traces. "
-                    f"Valid modules are {ALLOWED_DETAILED_TRACE_MODULES}")
-        observability_config = ObservabilityConfig(
-            otlp_traces_endpoint=self.otlp_traces_endpoint,
-            collect_model_forward_time="model" in detailed_trace_modules
-            or "all" in detailed_trace_modules,
-            collect_model_execute_time="worker" in detailed_trace_modules
-            or "all" in detailed_trace_modules,
-        )
+                    f"Invalid module {m} "
+                    f"specified in the --collect-detailed-traces argument. "
+                    f"When using {decode_type} decoding, "
+                    f"valid modules are {allowed_trace}")
+        if decode_type == "normal":
+            observability_config = ObservabilityConfig(
+                otlp_traces_endpoint=self.otlp_traces_endpoint,
+                collect_model_forward_time="model" in detailed_trace_modules
+                or "all" in detailed_trace_modules,
+                collect_model_execute_time="worker" in detailed_trace_modules
+                or "all" in detailed_trace_modules,
+                spec_decode_enable=False,
+            )
+        else:
+            observability_config = ObservabilityConfig(
+                otlp_traces_endpoint=self.otlp_traces_endpoint,
+                collect_spec_decode_time="time" in detailed_trace_modules
+                or "all" in detailed_trace_modules,
+                collect_spec_decode_accept_rate="rate" in detailed_trace_modules
+                or "all" in detailed_trace_modules,
+                spec_decode_enable=True,
+            )
 
         if (model_config.get_sliding_window() is not None
                 and scheduler_config.chunked_prefill_enabled
