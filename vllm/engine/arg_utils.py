@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 logger = init_logger(__name__)
 
 ALLOWED_DETAILED_TRACE_MODULES = {"normal": ["model", "worker", "all"],
-                                  "speculative": ["time", "accept rate","all"]}
+                                  "speculative": ["time", "accept_rate","all"]}
 
 def nullable_str(val: str):
     if not val or val == "None":
@@ -730,8 +730,11 @@ class EngineArgs:
             type=str,
             default=None,
             help="Valid choices are " +
-            ",".join(ALLOWED_DETAILED_TRACE_MODULES) +
-            ". It makes sense to set this only if --otlp-traces-endpoint is"
+            "1. For normal decoding: " +
+            f"[{','.join(ALLOWED_DETAILED_TRACE_MODULES['normal'])}]. "
+            "2. For speculative decoding: " +
+            f"[{','.join(ALLOWED_DETAILED_TRACE_MODULES['speculative'])}]. "
+            "It makes sense to set this only if --otlp-traces-endpoint is"
             " set. If set, it will collect detailed traces for the specified "
             "modules. This involves use of possibly costly and or blocking "
             "operations and hence might have a performance impact.")
