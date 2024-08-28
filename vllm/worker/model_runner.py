@@ -1493,6 +1493,7 @@ class ModelRunner(GPUModelRunnerBase[ModelInputForGPUWithSamplingMetadata]):
             sampling_metadata=model_input.sampling_metadata,
         )
         if (self.observability_config is not None
+                and not self.observability_config.spec_decode_enable
                 and self.observability_config.collect_model_forward_time
                 and output is not None):
             model_forward_end.synchronize()

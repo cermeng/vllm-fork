@@ -344,6 +344,7 @@ class LocalOrDistributedWorkerBase(WorkerBase):
                                             all_gather_group=get_tp_group())
             return [None]
         if (self.observability_config is not None
+                and not self.observability_config.spec_decode_enable
                 and self.observability_config.collect_model_execute_time
                 and output is not None):
             for o in output:
