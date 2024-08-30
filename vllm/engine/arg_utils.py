@@ -990,7 +990,7 @@ class EngineArgs:
                 otlp_traces_endpoint=self.otlp_traces_endpoint,
                 collect_spec_decode_time="time" in detailed_trace_modules
                 or "all" in detailed_trace_modules,
-                collect_spec_decode_accept_rate="rate" in detailed_trace_modules
+                collect_spec_decode_accept_rate="accept_rate" in detailed_trace_modules
                 or "all" in detailed_trace_modules,
                 spec_decode_enable=True,
             )
