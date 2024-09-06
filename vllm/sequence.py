@@ -16,7 +16,7 @@ from vllm.lora.request import LoRARequest
 from vllm.pooling_params import PoolingParams
 from vllm.prompt_adapter.request import PromptAdapterRequest
 from vllm.sampling_params import SamplingParams
-from vllm.spec_decode.metrics import SpecDecodeWorkerMetrics
+from vllm.spec_decode.metrics import SpecDecodeWorkerMetrics, SpecDecodeStageTime
 
 if TYPE_CHECKING:
     from vllm.inputs import LLMInputs
@@ -105,6 +105,8 @@ class RequestMetrics:
         model_execute_time: The time spent in the model execute function. This
                             will include model forward, block/sync across
                             workers, cpu-gpu sync time and sampling time.
+        spec_decode_worker_metrics: The metrics associated with speculative decoding.
+        spec_decode_stage_time: The time spent in each stage of speculative decoding.
     """
     arrival_time: float
     last_token_time: float
@@ -115,6 +117,8 @@ class RequestMetrics:
     scheduler_time: Optional[float] = None
     model_forward_time: Optional[float] = None
     model_execute_time: Optional[float] = None
+    spec_decode_worker_metrics: Optional[SpecDecodeWorkerMetrics] = None
+    spec_decode_stage_time: Optional[SpecDecodeStageTime] = None
 
 
 class SequenceDataDelta(

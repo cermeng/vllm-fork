@@ -108,7 +108,19 @@ class SpanAttributes(BaseSpanAttributes):
     # Time taken in the model execute function. This will include model
     # forward, block/sync across workers, cpu-gpu sync time and sampling time.
     LLM_LATENCY_TIME_IN_MODEL_EXECUTE = "gen_ai.latency.time_in_model_execute"
+    
+    # Time taken in different stages of spec decoding
+    # See https://github.com/vllm-project/vllm/pull/3103
+    LLM_LATENCY_TIME_IN_SPEC_DECODE_PROPOSER = "gen_ai.latency.time_in_spec_decode_proposer"
+    LLM_LATENCY_TIME_IN_SPEC_DECODE_SCORER = "gen_ai.latency.time_in_spec_decode_scorer"
+    LLM_LATENCY_TIME_IN_SPEC_DECODE_VERIFIER = "gen_ai.latency.time_in_spec_decode_verifier"
 
+    # Speculative decoding metrics in SpecDecodeWorkerMetrics
+    LLM_USAGE_SPEC_DECODE_SYSTEM_EFFICIENCY = "gen_ai.usage.spec_decode_system_efficiency"
+    LLM_USAGE_SPEC_DECODE_DRAFT_ACCEPTANCE_RATE = "gen_ai.usage.spec_decode_draft_acceptance_rate"
+    LLM_USAGE_SPEC_DECODE_DRAFT_TOKENS = "gen_ai.usage.spec_decode_draft_tokens"
+    LLM_USAGE_SPEC_DECODE_EMITTED_TOKENS = "gen_ai.usage.spec_decode_emitted_tokens"
+    LLM_USAGE_SPEC_DECODE_ACCEPTED_TOKENS = "gen_ai.usage.spec_decode_accepted_tokens"
 
 def contains_trace_headers(headers: Mapping[str, str]) -> bool:
     return any(h in headers for h in TRACE_HEADERS)

@@ -10,7 +10,8 @@ import msgspec
 import torch
 import torch.nn as nn
 
-from vllm.spec_decode.metrics import SpecDecodeWorkerMetrics
+from vllm.spec_decode.metrics import (SpecDecodeWorkerMetrics,
+                                      SpecDecodeStageTime)
 from vllm.triton_utils import HAS_TRITON
 
 if HAS_TRITON:
@@ -106,7 +107,8 @@ class SamplerOutput(
 
     # Spec decode metrics populated by workers.
     spec_decode_worker_metrics: Optional[SpecDecodeWorkerMetrics] = None
-
+    spec_decode_stage_time: Optional[SpecDecodeStageTime] = None
+    
     # Optional last hidden states from the model.
     hidden_states: Optional[torch.Tensor] = None
 

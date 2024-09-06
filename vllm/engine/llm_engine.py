@@ -1324,22 +1324,7 @@ class LLMEngine:
                 seq_group.update_num_computed_tokens(
                     scheduled_seq_group.token_chunk_size)
 
-            if outputs:
-                for o in outputs:
-                    if (isinstance(o, SamplerOutput)
-                            and seq_group.metrics is not None):
-                        if seq_group.metrics.model_forward_time is not None:
-                            seq_group.metrics.model_forward_time += (
-                                o.model_forward_time)
-                        else:
-                            seq_group.metrics.model_forward_time = (
-                                o.model_forward_time)
-                        if seq_group.metrics.model_execute_time is not None:
-                            seq_group.metrics.model_execute_time += (
-                                o.model_execute_time)
-                        else:
-                            seq_group.metrics.model_execute_time = (
-                                o.model_execute_time)
+            self._maybe_set_metrics(seq_group, outputs)
 
             if self.model_config.embedding_mode:
                 self._process_sequence_group_outputs(seq_group, output)
@@ -1388,6 +1373,53 @@ class LLMEngine:
             self.do_tracing(scheduler_outputs)
 
         return None
+
+    def _maybe_set_metrics(
+        self, 
+        seq_group: SequenceGroup,
+        sampler_output_list: List[SamplerOutput],
+        ):
+        """Set the metrics of the sequence group from SamplerOutput.
+        """
+        if sampler_output_list:
+            return
+        
+        if not (isinstance(sampler_output_list[0], SamplerOutput)
+                and seq_group.metrics is not None):
+            return
+        
+        # (NOTE): Otel metrics for inference w/ or w/o speculative decoding
+        # are mutually exclusive.
+        if not self.observability_config.spec_decode_enable:
+            # Set model forward/execute time.
+            for o in sampler_output_list:
+                if (isinstance(o, SamplerOutput)
+                        and seq_group.metrics is not None):
+                    if seq_group.metrics.model_forward_time is not None:
+                        seq_group.metrics.model_forward_time += (
+                            o.model_forward_time)
+                    else:
+                        seq_group.metrics.model_forward_time = (
+                            o.model_forward_time)
+                    if seq_group.metrics.model_execute_time is not None:
+                        seq_group.metrics.model_execute_time += (
+                            o.model_execute_time)
+                    else:
+                        seq_group.metrics.model_execute_time = (
+                            o.model_execute_time)
+        else: 
+            # Set spec decode metrics
+            # (NOTE): AsyncCollector for spec decode metrics only copy metrics 
+            # to SamplerOuput of the first step in a multi-step forward.
+            # (TODO): AsyncCollector has an internal interval to collect metrics. 
+            # Hence, the metrics may be inaccurate due to delays.
+            # Only for monitoring referecence, as the statistical trend remains valid.
+            if sampler_output_list[0].spec_decode_worker_metrics is not None:
+                seq_group.metrics.spec_decode_worker_metrics = \
+                    sampler_output_list[0].spec_decode_worker_metrics
+            if sampler_output_list[0].spec_decode_stage_time is not None:
+                seq_group.metrics.spec_decode_stage_time = \
+                    sampler_output_list[0].spec_decode_stage_time
 
     def _advance_to_next_step(
             self, output: List[SamplerOutput],
@@ -2002,6 +2034,32 @@ class LLMEngine:
                 seq_span.set_attribute(
                     SpanAttributes.LLM_LATENCY_TIME_IN_MODEL_EXECUTE,
                     metrics.model_execute_time)
+            if metrics.spec_decode_worker_metrics is not None:
+                seq_span.set_attribute(
+                    SpanAttributes.LLM_USAGE_SPEC_DECODE_DRAFT_ACCEPTANCE_RATE,
+                    metrics.spec_decode_worker_metrics.draft_acceptance_rate)
+                seq_span.set_attribute(
+                    SpanAttributes.LLM_USAGE_SPEC_DECODE_SYSTEM_EFFICIENCY,
+                    metrics.spec_decode_worker_metrics.system_efficiency)
+                seq_span.set_attribute(
+                    SpanAttributes.LLM_USAGE_SPEC_DECODE_DRAFT_TOKENS,
+                    metrics.spec_decode_worker_metrics.draft_tokens)
+                seq_span.set_attribute(
+                    SpanAttributes.LLM_USAGE_SPEC_DECODE_EMITTED_TOKENS,
+                    metrics.spec_decode_worker_metrics.emitted_tokens)
+                seq_span.set_attribute(
+                    SpanAttributes.LLM_USAGE_SPEC_DECODE_ACCEPTED_TOKENS,
+                    metrics.spec_decode_worker_metrics.accepted_tokens)
+            if metrics.spec_decode_stage_time is not None:
+                seq_span.set_attribute(
+                    SpanAttributes.LLM_LATENCY_TIME_IN_SPEC_DECODE_PROPOSER,
+                    metrics.spec_decode_stage_time.spec_decode_proposal_ms)
+                seq_span.set_attribute(
+                    SpanAttributes.LLM_LATENCY_TIME_IN_SPEC_DECODE_SCORER,
+                    metrics.spec_decode_stage_time.spec_decode_scoring_ms)
+                seq_span.set_attribute(
+                    SpanAttributes.LLM_LATENCY_TIME_IN_SPEC_DECODE_VERIFIER,
+                    metrics.spec_decode_stage_time.spec_decode_verification_ms)
 
     def is_encoder_decoder_model(self):
         return self.model_config.is_encoder_decoder_model

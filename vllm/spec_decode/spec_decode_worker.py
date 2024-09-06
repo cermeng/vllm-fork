@@ -3,8 +3,9 @@ from functools import cached_property
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import torch
+import msgspec
 
-from vllm.config import ParallelConfig, SpeculativeConfig
+from vllm.config import ParallelConfig, SpeculativeConfig, ObservabilityConfig
 from vllm.distributed.communication_op import broadcast_tensor_dict
 from vllm.logger import init_logger
 from vllm.model_executor.layers.rejection_sampler import RejectionSampler
@@ -32,6 +33,7 @@ from vllm.spec_decode.util import (Timer, create_sequence_group_output,
                                    get_all_num_logprobs,
                                    get_sampled_token_logprobs, nvtx_range,
                                    split_batch_by_proposal_len)
+from vllm.spec_decode.metrics import SpecDecodeStageTime
 from vllm.worker.worker import Worker
 from vllm.worker.worker_base import LoraNotSupportedWorkerBase, WorkerBase
 
@@ -45,6 +47,10 @@ def create_spec_worker(*args, **kwargs) -> "SpecDecodeWorker":
     assert "speculative_config" in kwargs
     speculative_config: SpeculativeConfig = kwargs.get("speculative_config")
     assert speculative_config is not None
+
+    assert "observability_config" in kwargs
+    observability_config: ObservabilityConfig = kwargs.get("observability_config")
+    assert observability_config.spec_decode_enable is True
 
     draft_worker_kwargs = kwargs.copy()
 
@@ -78,6 +84,7 @@ def create_spec_worker(*args, **kwargs) -> "SpecDecodeWorker":
         typical_acceptance_sampler_posterior_alpha,
         disable_logprobs=speculative_config.disable_logprobs,
         disable_log_stats=speculative_config.disable_log_stats,
+        observability_config=observability_config,
     )
 
     return spec_decode_worker
@@ -120,6 +127,7 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
         typical_acceptance_sampler_posterior_alpha: float,
         disable_logprobs: bool,
         disable_log_stats: bool,
+        observability_config: Optional[ObservabilityConfig] = None,
     ) -> "SpecDecodeWorker":
 
         allow_zero_draft_token_step = True
@@ -183,7 +191,8 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
             disable_log_stats=disable_log_stats,
             disable_by_batch_size=disable_by_batch_size,
             spec_decode_sampler=spec_decode_sampler,
-            allow_zero_draft_token_step=allow_zero_draft_token_step)
+            allow_zero_draft_token_step=allow_zero_draft_token_step,
+            observability_config=observability_config)
 
     def __init__(
         self,
@@ -195,6 +204,7 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
         metrics_collector: Optional[AsyncMetricsCollector] = None,
         disable_by_batch_size: Optional[int] = None,
         allow_zero_draft_token_step: Optional[bool] = True,
+        observability_config: Optional[ObservabilityConfig] = None,
     ):
         """
         Create a SpecDecodeWorker.
@@ -254,6 +264,8 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
         self.previous_hidden_states: Optional[HiddenStates] = None
         self._disable_logprobs = disable_logprobs
         self._disable_log_stats = disable_log_stats
+
+        self.observability_config = observability_config
 
     def init_device(self) -> None:
         """Initialize both scorer and proposer models.
@@ -590,9 +602,14 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
                 execute_model_req.seq_group_metadata_list, proposal_scores,
                 proposals, execute_model_req.num_lookahead_slots)
 
-        stage_times = (proposal_timer.elapsed_time_ms / num_lookahead_slots,
-                       scoring_timer.elapsed_time_ms,
-                       verification_timer.elapsed_time_ms)
+        stage_times = SpecDecodeStageTime(proposal_timer.elapsed_time_ms / num_lookahead_slots,
+                                             scoring_timer.elapsed_time_ms,
+                                             verification_timer.elapsed_time_ms)
+        # if (self.observability_config is not None
+        #         and self.observability_config.collect_spec_decode_time):
+        #     self.observability_config.spec_decode_worker_metrics.add_stage_times(
+        #         stage_times)
+            #TODO: add where?
 
         return self._create_output_sampler_list(
             execute_model_req.seq_group_metadata_list,
@@ -692,7 +709,7 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
         accepted_token_ids: torch.Tensor,  # shape: [batch_size, k+1]
         target_logprobs: torch.Tensor,  # shape: [batch_size, k+1, vocab_size]
         k: int,
-        stage_times: Tuple[float, float, float],
+        stage_times: SpecDecodeStageTime,
     ) -> List[SamplerOutput]:
         """Given the accepted token ids, create a list of SamplerOutput.
 
@@ -768,13 +785,15 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
         maybe_rejsample_metrics = (
             self._metrics.maybe_collect_rejsample_metrics(k))
         if maybe_rejsample_metrics is not None:
-            sampler_output_list[
-                0].spec_decode_worker_metrics = maybe_rejsample_metrics
+            # Only the first sampler output to store metrics
+            output = sampler_output_list[0]
+            output.spec_decode_worker_metrics = maybe_rejsample_metrics
+            output.spec_decode_stage_time = stage_times
 
             # Log time spent in each stage periodically.
             # This is periodic because the rejection sampler emits metrics
             # periodically.
-            self._maybe_log_stage_times(*stage_times)
+            self._maybe_log_stage_times(msgspec.structs.astuple(stage_times))
 
         return sampler_output_list
 

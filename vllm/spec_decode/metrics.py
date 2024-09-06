@@ -44,6 +44,15 @@ class SpecDecodeWorkerMetrics(
     # The number of speculative tokens per sequence.
     num_spec_tokens: int
 
+class SpecDecodeStageTime(
+        msgspec.Struct,
+        omit_defaults=True,  # type: ignore[call-arg]
+        array_like=True):  # type: ignore[call-arg]
+    """Dataclass holding metrics emitted from the spec decode timer.
+    """
+    spec_decode_proposal_ms: float
+    spec_decode_scoring_ms: float
+    spec_decode_verification_ms: float
 
 Timer = Callable[[], float]
 
